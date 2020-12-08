@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/normalize.css@8.0.1/normalize.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@twilio-paste/design-tokens@6.3.0/dist/tokens.custom-properties.css" />
+  <link rel="stylesheet" href="index.css" />
+  <title>Results</title>
+
+  <script src="https://media.twiliocdn.com/sdk/js/sync/v0.12/twilio-sync.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="/audiobuffer-to-wav.js"></script>
+</head>
+
+<body>
+  <div class="tp-app" id="app">
+    <main class="tp-site-main">
+      <div class="tp-site-main-inner">
+        <!-- checkout Paste Headings https://paste.twilio.design/components/heading -->
+        <h1>Your Single Party Recording results</h1>
+        <div class="tp-layout">
+          <div class="tp-layout-col">
+
+            <article class="tp-card" v-for="(item, key) in calls" :key="key">
+              <h2>Call: \{{ key }}</h2>
+              <div class="recording" v-if="item.recorded">
+                <h3>Recording: \{{ item.recorded.RecordingSid }}</h3>
+                <input type="checkbox" :id="key" :value="key" v-model="selectedCalls">
+                <audio controls v-bind:src="item.recorded.RecordingUrl" :id="item.recorded.RecordingSid"></audio>
+                <details>
+                  <summary>Webhook Request Values</summary>
+                  <pre>
+              <code>
+\{{ JSON.stringify(item, null, 2) }}
+              </code>
+            </pre>
+                </details>
+              </div>
+            </article>
+            <article class="tp-card">
+            Selected calls: \{{ selectedCalls }}
+            <button v-on:click="offlineLoad" class="tp-button tp-button--primary">Mix selected tracks</button>
+            <p class="tp-lead" id="status">\{{ status }}</p>
+            <div id="mixing">
+              <div id="mix-container" v-if="mixedUrl">
+                <audio controls v-bind:src="mixedUrl"></audio>
+              </div>
+            </div>
+            </article>
+
+          </div>
+        </div>
+    </main>
+  </div>
+  <script>
+    async function getAudioBuffer(context, url) {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      return await context.decodeAudioData(arrayBuffer);
+    }
+    const app = new Vue({
+      el: "#app",
+      data: {
+        calls: {},
+        selectedCalls: [],
+        cachedAudioBufferPromises: {},
+        status: "",
+        mixedUrl: undefined,
+      },
+      methods: {
+        cacheRecording(context, call) {
+          const cache = this.cachedAudioBufferPromises;
+          if (!cache[call.recorded.RecordingSid]) {
+            cache[call.recorded.RecordingSid] = getAudioBuffer(context, call.recorded.RecordingUrl);
+          }
+        },
+        async offlineLoad(event) {
+          this.status = `Mixing ${this.selectedCalls.length} selected recordings...`;
+          if (this.mixedUrl) {
+            URL.revokeObjectURL(this.mixedUrl);
+            this.mixedUrl = undefined;
+          }
+          // Used only for decoding
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          const audioCtx = new AudioContext();
+          const chosen = this.selectedCalls.map(id => this.calls[id]);
+          chosen.forEach(call => this.cacheRecording(audioCtx, call));
+          const bufferSizes = await Promise.all(chosen.map(async call => {
+            const buffer = await this.cachedAudioBufferPromises[call.recorded.RecordingSid];
+            return buffer.length;
+          }));
+          const maxLength = Math.max(...bufferSizes);
+          const recordingTimes = chosen.map(call => Date.parse(call.recorded.RecordingStartTime));
+          const earliestRecordingTime = Math.min(...recordingTimes);
+          // TODO: channel tweaks?
+          const numChannels = 2;
+          const offlineCtx = new OfflineAudioContext(numChannels, maxLength, 8000);
+          chosen.forEach(async call => {
+            const source = offlineCtx.createBufferSource();
+            source.buffer = await this.cachedAudioBufferPromises[call.recorded.RecordingSid];
+            const recordingStartTime = Date.parse(call.recorded.RecordingStartTime);
+            const offset = recordingStartTime - earliestRecordingTime;
+            const delayInSeconds = offset / 1000;
+            source.connect(offlineCtx.destination);
+            source.start(delayInSeconds);
+          });
+          const renderedBuffer = await offlineCtx.startRendering();
+          // Import from StackOverflow
+          const wavFile = bufferToWave(renderedBuffer, 0, renderedBuffer.length / renderedBuffer.numberOfChannels);
+          this.mixedUrl = URL.createObjectURL(wavFile);
+          this.status = `Mixed ${this.selectedCalls.length} recordings. Press the more options button to download`;
+
+        },
+      },
+      created() {
+        // These are populated server side
+        const token = '{{ token }}';
+        const mapSid = '{{ mapSid }}';
+        const syncClient = new Twilio.Sync.Client(token);
+        syncClient.map(mapSid).then(async (syncMap) => {
+          console.log(`Subscribed to ${mapSid}`);
+          syncMap.on("itemUpdated", (evt) => {
+            const item = evt.item;
+            console.log(`Item updated: ${item.key}`);
+            this.$set(this.calls, item.key, item.value);
+          });
+          const page = await syncMap.getItems();
+          page.items.forEach((item) => {
+            this.$set(this.calls, item.key, item.value);
+          });
+        });
+      }
+    });
+
+  </script>
+</body>
+
+</html>

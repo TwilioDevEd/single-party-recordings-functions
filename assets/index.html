@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/normalize.css@8.0.1/normalize.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@twilio-paste/design-tokens@6.3.0/dist/tokens.custom-properties.css"
+    />
+    <link rel="stylesheet" href="index.css" />
+    <title>Recordings Explorer</title>
+  </head>
+  <body>
+    <div class="tp-app">
+      <main class="tp-site-main">
+        <div class="tp-site-main-inner">
+          <div class="tp-layout tp-layout--2-col">
+            <div class="tp-layout-col">
+              <h1>Single Party Recordings Explorer</h1>
+              <p class="tp-lead">
+                Record each track of your <a href="https://www.twilio.com/docs/voice/conference">Conference</a> separately.
+              </p>
+            </div>
+            <div class="tp-layout-col">
+              <article class="tp-card">
+                <form action="/create-calls" method="POST">
+                  <input id="hostname" type="hidden" name="HostName" />
+                  <label class="tp-label" for="numbers"
+                    >Phone numbers to call (one on each line):</label
+                  >
+                  <div class="tp-input-wrapper to-textarea">
+                    <textarea
+                      id="numbers"
+                      name="Numbers"
+                      placeholder="+15553332222
++15552223333
++15556667777
+"
+                      rows="5"
+                    ></textarea>
+                  </div>
+                  <button class="tp-button tp-button--primary" type="submit">
+                    Make calls
+                  </button>
+                </form>
+              </article>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+  <script>
+    const el = (document.getElementById("hostname").value =
+      window.location.hostname);
+  </script>
+</html>

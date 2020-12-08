@@ -1,0 +1,23 @@
+{
+  "name": "single-party-recordings",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "twilio-run",
+    "deploy": "twilio-run deploy"
+  },
+  "dependencies": {
+    "axios": "^0.21.0",
+    "handlebars": "^4.7.6",
+    "querystring": "^0.2.0",
+    "twilio": "^3.53.0"
+  },
+  "devDependencies": {
+    "configure-env": "^1.0.0",
+    "twilio-run": "^2.6.0"
+  },
+  "engines": {
+    "node": "10"
+  }
+}
