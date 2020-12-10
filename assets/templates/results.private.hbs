@@ -85,7 +85,7 @@
           }
           // Used only for decoding
           const AudioContext = window.AudioContext || window.webkitAudioContext;
-          const audioCtx = new AudioContext();
+          const audioCtx = new AudioContext({sampleRate: 8000});
           const chosen = this.selectedCalls.map(id => this.calls[id]);
           chosen.forEach(call => this.cacheRecording(audioCtx, call));
           const bufferSizes = await Promise.all(chosen.map(async call => {
@@ -95,21 +95,27 @@
           const maxLength = Math.max(...bufferSizes);
           const recordingTimes = chosen.map(call => Date.parse(call.recorded.RecordingStartTime));
           const earliestRecordingTime = Math.min(...recordingTimes);
-          // TODO: channel tweaks?
-          const numChannels = 2;
-          const offlineCtx = new OfflineAudioContext(numChannels, maxLength, 8000);
-          chosen.forEach(async call => {
+          // TODO: Is this mono or dual?
+          const numChannels = chosen.length;
+          console.log({numChannels, maxLength, sampleRate: audioCtx.sampleRate});
+          const offlineCtx = new OfflineAudioContext(numChannels, maxLength, audioCtx.sampleRate);
+          const merger = offlineCtx.createChannelMerger(numChannels);
+          merger.connect(offlineCtx.destination);
+          chosen.forEach(async (call, index) => {
             const source = offlineCtx.createBufferSource();
             source.buffer = await this.cachedAudioBufferPromises[call.recorded.RecordingSid];
             const recordingStartTime = Date.parse(call.recorded.RecordingStartTime);
             const offset = recordingStartTime - earliestRecordingTime;
+            console.log({recordingStartTime, earliestRecordingTime});
             const delayInSeconds = offset / 1000;
-            source.connect(offlineCtx.destination);
+            source.connect(merger, 0, index);
             source.start(delayInSeconds);
           });
           const renderedBuffer = await offlineCtx.startRendering();
+          console.log("Rendered buffer:");
+          console.log({numberOfChannels: renderedBuffer.numberOfChannels, sampleRate: renderedBuffer.sampleRate});
           // Import from StackOverflow
-          const wavFile = bufferToWave(renderedBuffer, 0, renderedBuffer.length / renderedBuffer.numberOfChannels);
+          const wavFile = bufferToWave(renderedBuffer, 0, renderedBuffer.length);
           this.mixedUrl = URL.createObjectURL(wavFile);
           this.status = `Mixed ${this.selectedCalls.length} recordings. Press the more options button to download`;
 
