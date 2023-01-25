@@ -11,7 +11,7 @@
     "axios": "^0.21.0",
     "handlebars": "^4.7.6",
     "querystring": "^0.2.0",
-    "twilio": "^3.53.0"
+    "twilio": "^4.0.0"
   },
   "devDependencies": {
     "configure-env": "^1.0.0",
